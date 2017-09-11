@@ -53,4 +53,4 @@ similar_relations, similarities = model.similarRelations(word1, word2, word3, to
  - [Improving Distributional Similarity with Lessons Learned from Word Embeddings](http://www.aclweb.org/anthology/Q15-1016)
 
  ## License
- All work contained in this package is licensed under the BSD License. See the included LICENSE file.
+ All work contained in this package is licensed under GNU GPL License. See the included LICENSE file.
