@@ -40,7 +40,7 @@ class worvecs:
         self.words = np.array([])
         self.vectors = np.array([])
         self.word_ids = {}
-        if sentences != None and len(sentences) > 1:
+        if sentences != None:
             self.buildWordVectors(sentences)
         else:
             return None
