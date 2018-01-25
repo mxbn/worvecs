@@ -19,7 +19,7 @@ class worvecs:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, window=10, pctl=75, width=500):
+    def __init__(self, sentences=None, window=5, pctl=75, width=100):
         """Class initializer.
 
         Args:
@@ -45,6 +45,56 @@ class worvecs:
         else:
             return None
 
+    def __buildDict(self, sentences):
+        """Method to build the dictionary with word counts.
+
+        Args:
+            sentences (iterable): list of sentences spit into tokens
+        """
+        words = []
+        word_ids = {}
+        word_cnts = []
+        for s in sentences:
+            for w in s:
+                if w not in word_ids:
+                    words.append(w)
+                    word_ids[w] = len(word_ids)
+                    word_cnts.append(1)
+                else:
+                    word_cnts[word_ids[w]] += 1
+        min_count = np.percentile(word_cnts, self.pctl)
+        sorted_ids = np.argsort(np.array(word_cnts))[::-1]
+        self.words = [words[i] for i in sorted_ids if word_cnts[i] >= min_count]
+        self.word_ids = {w: i for i, w in enumerate(self.words)}
+        self.word_cnts = [word_cnts[i] for i in sorted_ids \
+            if word_cnts[i] >= min_count]
+
+    def __builContext(self, sentences):
+        """Method to build the word context counts.
+
+        Args:
+            sentences (iterable): list of sentences spit into tokens
+        """
+        context = [{} for i in range(len(self.words))]
+        for s in sentences:
+            for i in range(len(s)):
+                if s[i] not in self.word_ids:
+                    continue
+                window_start = max([i-self.window, 0])
+                window_end = min([i+self.window, len(s)])
+                context_space = max([self.window - i, 0])
+                for j in range(window_start, window_end):
+                    if i == j or s[j] not in self.word_ids:
+                        continue
+                    context_id = context_space*len(self.words) + \
+                        self.word_ids[s[j]]
+                    context_space += 1
+                    if context_id in context[self.word_ids[s[i]]]:
+                        context[self.word_ids[s[i]]][context_id] += 1
+                    else:
+                        context[self.word_ids[s[i]]][context_id] = 1
+        return context
+
     def buildWordVectors(self, sentences):
         """Method to build word embeddings model.
 
@@ -52,91 +102,45 @@ class worvecs:
             sentences (iterable): list of sentences spit into tokens
 
         Returns:
-            bool: The return value. True if word vectors are succesfully
-                updated, False otherwise.
+            bool: True if word vectors are succesfully updated, False otherwise.
         """
-        words = []
-        word_ids = {}
-        word_cnt = []
-        before = []
-        after = []
-        for sent in sentences:
-            for word in sent:
-                if word not in word_ids:
-                    words.append(word)
-                    word_ids[word] = len(word_ids)
-                    word_cnt.append(1)
-                    before.append({})
-                    after.append({})
-                else:
-                    word_cnt[word_ids[word]] += 1
-            for i in range(len(sent)):
-                start = 0 if i - self.window < 0 else i - self.window
-                end = len(sent) if i + self.window > len(sent) else \
-                    i + self.window
-                w = word_ids[sent[i]]
-                for j in range(start, i):
-                    c = word_ids[sent[j]]
-                    before[w][c] = before[w][c] + 1 if c in before[w] else 1
-                for j in range(i+1,end):
-                    c = word_ids[sent[j]]
-                    after[w][c] = after[w][c] + 1 if c in after[w] else 1
+        self.__buildDict(sentences)
+        context = self.__builContext(sentences)
 
-        # build sparse matrix of the word-context jaccards
-        # using only the words above the threshold frequency
-        min_count = np.percentile(word_cnt, self.pctl)
-        sorted_ids = np.argsort(np.array(word_cnt))[::-1]
-        self.words = np.array([words[i] for i in sorted_ids if word_cnt[i] >= \
-            min_count])
-        if len(self.words) < 2:
-            return False
         data = []
         indcs = []
         indptr = [0]
         for w in self.words:
-            wid = word_ids[w]
-            wf = word_cnt[wid]
-            vec = np.zeros(2*len(words))
-            for c in before[wid]:
-                cf = word_cnt[c]
-                if cf >= min_count:
-                    wcf = before[wid][c]
-                    vec[c] = wcf/(wf+cf-wcf)
-            for c in after[wid]:
-                cf = word_cnt[c]
-                if cf >= min_count:
-                    wcf = after[wid][c]
-                    vec[c+len(words)] = wcf/(wf+cf-wcf)
+            wid = self.word_ids[w]
+            wf = self.word_cnts[wid]
+            vec = np.zeros(len(self.words)*2*self.window)
+            for c in context[wid]:
+                context_id = int(abs(c/len(self.words) - \
+                    c//len(self.words))*len(self.words))
+                cf = self.word_cnts[context_id]
+                wcf = context[wid][c]
+                vec[c] = wcf/(wf+cf-wcf)
             if np.linalg.norm(vec, 2) > 1e-6:
                 vec /= np.linalg.norm(vec, 2)
-                nonzero_indcs = np.nonzero(vec)[0]
-                data += list(vec[nonzero_indcs])
-                indcs += list(nonzero_indcs)
-                indptr.append(indptr[-1] + len(nonzero_indcs))
-            else:
-                data += [0]
-                indcs += [0]
-                indptr.append(indptr[-1] + 1)
+            nonzero_indcs = np.nonzero(vec)[0]
+            data += list(vec[nonzero_indcs])
+            indcs += list(nonzero_indcs)
+            indptr.append(indptr[-1] + len(nonzero_indcs))
+
         m = csc_matrix(csr_matrix((data, indcs, indptr)))
         if m.shape[0] <= self.width or m.shape[1] <= self.width:
-            raise Exception("The number of dimensions in the constructed " + \
-                "sparse word vectors is smaller than requested vector " + \
-                " length. Perhaps consider larger corpus of sentences.")
+            raise Exception("error")
             return False
-
-        # decompose the sparse matrix
-
         ut, s, vt = svds(m, self.width)
-        # update dictionary and vectors
+
         vectors = []
-        for i, vec in enumerate(ut.dot(np.diag(s))):
+        for vec in ut.dot(np.diag(s)):
             if np.linalg.norm(vec, 2) > 1e-6:
                 vec /= np.linalg.norm(vec, 2)
             else:
                 vec *= 0
             vectors.append(vec)
         self.vectors = np.array(vectors)
-        self.word_ids = {self.words[i]:i for i in range(len(self.words))}
         return True
 
     def save(self, fname):

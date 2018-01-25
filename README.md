@@ -1,8 +1,8 @@
 # worvecs  
 
-Word-context similarity vectors, alternative to [word2vec](https://code.google.com/archive/p/word2vec/), [GloVe](https://github.com/stanfordnlp/GloVe) and [hyperwords](https://bitbucket.org/omerlevy/hyperwords).  
+Word-context similarity vectors, alternative to [word2vec](https://code.google.com/archive/p/word2vec/), [GloVe](https://github.com/stanfordnlp/GloVe) and [hyperwords](https://bitbucket.org/omerlevy/hyperwords). This particular version is memory greedy, but results are similar to the alternatives. The goal of this project is to find a robust analytical solution instead of iterative learning.  
 
-The algorithm calculates word vectors without a need of iterative training. Word-context similarity is encoded in a sparse matrix with Jaccard index values between the word and the context, then l2 normalized and decomposed into vectors of smaller dimensions.  
+Word-context similarity is encoded in a sparse matrix with Jaccard index values between the word and the context, then l2 normalized and decomposed into vectors of smaller dimensions.  
 
 Words that are close in cosine space appear to be semantically similar, same as in other algorithms mentioned above. Also word relations in the vector space are similarly preserved.  
 
