@@ -19,7 +19,7 @@ class worvecs:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, window=5, pctl=75, width=100):
+    def __init__(self, sentences=None, window=5, pctl=75, width=100, encoding=0):
         """Class initializer.
 
         Args:
@@ -29,6 +29,8 @@ class worvecs:
             pctl (int): percentile of word counts to use for discarding rare
                 words. Default value is 75.
             width (int): word vectors width. Default value 500.
+            encoding (int): word vectors encoding. Default values is 0 for
+                Jaccard, 1 for Bayesian.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
@@ -40,12 +42,22 @@ class worvecs:
         self.words = np.array([])
         self.vectors = np.array([])
         self.word_ids = {}
+        self.encoding = encoding
+        self._encoding = self._jaccard
+        if encoding == 1:
+            self._encoding = self._bayesian
         if sentences != None:
             self.buildWordVectors(sentences)
         else:
             return None
 
-    def __buildDict(self, sentences):
+    def _jaccard(self, wcf, wf, cf):
+        return wcf/(wf+cf-wcf)
+
+    def _bayesian(self, wcf, wf, cf):
+        return wcf/cf
+
+    def _buildDict(self, sentences):
         """Method to build the dictionary with word counts.
 
         Args:
@@ -69,7 +81,7 @@ class worvecs:
         self.word_cnts = [word_cnts[i] for i in sorted_ids \
             if word_cnts[i] >= min_count]
 
-    def __builContext(self, sentences):
+    def _builContext(self, sentences):
         """Method to build the word context counts.
 
         Args:
@@ -104,8 +116,8 @@ class worvecs:
         Returns:
             bool: True if word vectors are succesfully updated, False otherwise.
         """
-        self.__buildDict(sentences)
-        context = self.__builContext(sentences)
+        self._buildDict(sentences)
+        context = self._builContext(sentences)
 
         data = []
         indcs = []
@@ -119,7 +131,7 @@ class worvecs:
                     c//len(self.words))*len(self.words))
                 cf = self.word_cnts[context_id]
                 wcf = context[wid][c]
-                vec[c] = wcf/(wf+cf-wcf)
+                vec[c] = self._encoding(wcf, wf, cf)
             if np.linalg.norm(vec, 2) > 1e-6:
                 vec /= np.linalg.norm(vec, 2)
             nonzero_indcs = np.nonzero(vec)[0]

@@ -18,7 +18,8 @@ model = worvecs.model(sentences, window=10, pctl=75, width=500)
 
 `window` - is a number of words on either side of the word used to build vectors,  
 `pctl` - the percentile of word counts to use for discarding rare words,  
-`width` - the width of the final vector.  
+`width` - the width of the final vector,  
+`encoding` - the context encoding. Default value is 0 for Jaccard, 1 for Bayesian. The difference between the two is that Jaccard encoding is more representative of semantic similarity, when Bayesian is more about related concepts.   
 
 Text pre-processing recommendation: works better on a lower cased content with punctuation removed.  
 
