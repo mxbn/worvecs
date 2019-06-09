@@ -19,33 +19,36 @@ class worvecs:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, window=5, pctl=75, width=100, encoding=0):
+    def __init__(self, sentences=None, bins=2, bin_width=3, pctl=50, width=100,
+        encoding=0):
         """Class initializer.
 
         Args:
             sentences (iterable, optional): list of sentences spit into tokens
-            window (int): number of words on the either side of the word used
-                for building word vectors. Default value is 10.
+            bins (int): number of bins on the either side of the word.
+                Default value is 3.
+            bin_width (int): width of the bin. Default value is 3.
             pctl (int): percentile of word counts to use for discarding rare
                 words. Default value is 75.
             width (int): word vectors width. Default value 500.
-            encoding (int): word vectors encoding. Default values is 0 for
-                Jaccard, 1 for Bayesian.
+            encoding (int): word vectors encoding. Default value is 0 for
+                Bayesian, 1 for Jaccard.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
                 succesfully built, None otherwise.
         """
-        self.window = window
+        self.bins = bins
+        self.bin_width = bin_width
         self.pctl = pctl
         self.width = width
         self.words = np.array([])
         self.vectors = np.array([])
         self.word_ids = {}
         self.encoding = encoding
-        self._encoding = self._jaccard
+        self._encoding = self._bayesian
         if encoding == 1:
-            self._encoding = self._bayesian
+            self._encoding = self._jaccard
         if sentences != None:
             self.buildWordVectors(sentences)
         else:
@@ -81,6 +84,32 @@ class worvecs:
         self.word_cnts = [word_cnts[i] for i in sorted_ids \
             if word_cnts[i] >= min_count]
 
+    # def _builContext(self, sentences):
+    #     """Method to build the word context counts.
+    #
+    #     Args:
+    #         sentences (iterable): list of sentences spit into tokens
+    #     """
+    #     context = [{} for i in range(len(self.words))]
+    #     for s in sentences:
+    #         for i in range(len(s)):
+    #             if s[i] not in self.word_ids:
+    #                 continue
+    #             window_start = max([i-self.window, 0])
+    #             window_end = min([i+self.window, len(s)])
+    #             context_space = max([self.window - i, 0])
+    #             for j in range(window_start, window_end):
+    #                 if i == j or s[j] not in self.word_ids:
+    #                     continue
+    #                 context_id = context_space*len(self.words) + \
+    #                     self.word_ids[s[j]]
+    #                 context_space += 1
+    #                 if context_id in context[self.word_ids[s[i]]]:
+    #                     context[self.word_ids[s[i]]][context_id] += 1
+    #                 else:
+    #                     context[self.word_ids[s[i]]][context_id] = 1
+    #     return context
+
     def _builContext(self, sentences):
         """Method to build the word context counts.
 
@@ -88,19 +117,22 @@ class worvecs:
             sentences (iterable): list of sentences spit into tokens
         """
         context = [{} for i in range(len(self.words))]
+        width = self.bin_width*self.bins
+        bin_ids = {}
+        for i in range(-self.bins,  self.bins):
+            for j in range(i* self.bin_width, (i+1)*self.bin_width):
+                bin_ids[j + (0 if i < 0 else 1)] = i + self.bins
         for s in sentences:
             for i in range(len(s)):
                 if s[i] not in self.word_ids:
                     continue
-                window_start = max([i-self.window, 0])
-                window_end = min([i+self.window, len(s)])
-                context_space = max([self.window - i, 0])
+                window_start = max([i-width, 0])
+                window_end = min([i+width, len(s)])
                 for j in range(window_start, window_end):
                     if i == j or s[j] not in self.word_ids:
                         continue
-                    context_id = context_space*len(self.words) + \
+                    context_id = bin_ids[j-i]*len(self.words) + \
                         self.word_ids[s[j]]
-                    context_space += 1
                     if context_id in context[self.word_ids[s[i]]]:
                         context[self.word_ids[s[i]]][context_id] += 1
                     else:
@@ -125,7 +157,7 @@ class worvecs:
         for w in self.words:
             wid = self.word_ids[w]
             wf = self.word_cnts[wid]
-            vec = np.zeros(len(self.words)*2*self.window)
+            vec = np.zeros(len(self.words)*2*self.bins*self.bin_width)
             for c in context[wid]:
                 context_id = int(abs(c/len(self.words) - \
                     c//len(self.words))*len(self.words))
