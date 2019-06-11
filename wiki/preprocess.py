@@ -1,8 +1,8 @@
 import gzip, time
 import regex as re
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
-n_threads = 4
+n_threads = cpu_count()
 
 abstract_finder = re.compile(r'<abstract>(.*?)</abstract>')
 empty_abstract_finder = re.compile(r'\|?[\s_a-z0-9]+=|=\s*=\s*[a-z]+\s*=\s*=|.*?may\s*refer\s*to\s*\:')
