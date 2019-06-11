@@ -21,8 +21,8 @@ class worvecs:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, bins=2, bin_width=3, pctl=50, width=100,
-        encoding=0, n_threads=0, verbose=0):
+    def __init__(self, sentences=None, bins=2, bin_width=3, min_frq=1e-5,
+        max_frq=0.3, width=100, encoding=0, n_threads=0, verbose=0):
         """Class initializer.
 
         Args:
@@ -30,8 +30,10 @@ class worvecs:
             bins (int): number of bins on the either side of the word.
                 Default value is 3.
             bin_width (int): width of the bin. Default value is 3.
-            pctl (int): percentile of word counts to use for discarding rare
-                words. Default value is 75.
+            min_frq (float): minimum word frequency as a fraction of the number
+                of documents. Default value is 1e-5.
+            max_frq (float): miximum word frequency as a fraction of the number
+                of documents. Default value is 0.3.
             width (int): word vectors width. Default value 500.
             encoding (int): word vectors encoding. Default value is 0 for
                 Bayesian, 1 for Jaccard.
@@ -42,7 +44,8 @@ class worvecs:
         """
         self.bins = bins
         self.bin_width = bin_width
-        self.pctl = pctl
+        self.min_frq = min_frq
+        self.max_frq = max_frq
         self.width = width
         self.words = np.array([])
         self.vectors = np.array([])
@@ -59,6 +62,8 @@ class worvecs:
             self.verbose = False
         else:
             self.verbose = True
+            logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',\
+                                level=logging.INFO)
         self.context_width = bin_width*bins
         self.bin_ids = {}
         for i in range(-bins, bins):
@@ -85,40 +90,42 @@ class worvecs:
         word_ids = {}
         word_cnts = []
         for s in sentences:
-            for w in s:
+            for w in np.unique(s):
                 if w not in word_ids:
                     words.append(w)
                     word_ids[w] = len(word_ids)
                     word_cnts.append(1)
                 else:
                     word_cnts[word_ids[w]] += 1
-        min_count = np.percentile(word_cnts, self.pctl)
+        min_count = len(word_cnts)*self.min_frq
+        max_count = len(word_cnts)*self.max_frq
         sorted_ids = np.argsort(np.array(word_cnts))[::-1]
-        self.words = [words[i] for i in sorted_ids if word_cnts[i] >= min_count]
+        self.words = [words[i] for i in sorted_ids if word_cnts[i] >= min_count\
+                      and word_cnts[i] < max_count]
         self.word_ids = {w: i for i, w in enumerate(self.words)}
         self.word_cnts = [word_cnts[i] for i in sorted_ids \
             if word_cnts[i] >= min_count]
 
-    def _getContext(words):
+    def _getContext(self, words):
         rows = []
         cols = []
         vals = []
         for i in range(len(words)):
             if words[i] not in self.word_ids:
                 continue
-            window_start = max([i-width, 0])
-            window_end = min([i+width, len(words)])
+            window_start = max([i-self.context_width, 0])
+            window_end = min([i+self.context_width, len(words)])
             for j in range(window_start, window_end):
-                if i == j or words[j] not in word_ids:
+                if i == j or words[j] not in self.word_ids:
                     continue
-                context_id = bin_ids[j-i]*len(self.word_ids) + \
+                context_id = self.bin_ids[j-i]*len(self.word_ids) + \
                     self.word_ids[words[j]]
                 rows.append(self.word_ids[words[i]])
                 cols.append(context_id)
                 vals.append(1/self.word_cnts[self.word_ids[words[i]]])
         return rows, cols, vals
 
-    def buildWordVectors(sentences):
+    def buildWordVectors(self, sentences):
         """Method to build word embeddings model.
 
         Args:
@@ -127,12 +134,12 @@ class worvecs:
         Returns:
             bool: True if word vectors are succesfully updated, False otherwise.
         """
-        if this.verbose:
-            logging.Info('building dictionary...')
-        this._buildDict(sentences)
-        if this.verbose:
-            logging.Info('%d words' % len(this.word_ids))
-        if this.verbose:
+        if self.verbose:
+            logging.info('building dictionary...')
+        self._buildDict(sentences)
+        if self.verbose:
+            logging.info('%d words' % len(self.word_ids))
+        if self.verbose:
             logging.info('building context...')
         context = {i:{} for i in range(len(self.word_ids))}
         with Pool(self.n_threads) as p:
@@ -142,7 +149,7 @@ class worvecs:
                         context[r][c] += v
                     else:
                         context[r][c] = v
-        if this.verbose:
+        if self.verbose:
             logging.info('converting to sparse matrix...')
         rows = []
         cols = []
@@ -157,14 +164,14 @@ class worvecs:
         del cols
         del rows
         del vals
-        if this.verbose:
+        if self.verbose:
             logging.info('normalizing...')
         m = normalize(m, norm='l2', axis=0, copy=False)
         m = csc_matrix(m)
-        if this.verbose:
+        if self.verbose:
             logging.info('decomposing...')
         ut, s, vt = svds(m, width)
-        if this.verbose:
+        if self.verbose:
             logging.info('normalizing again...')
         vectors = []
         for vec in ut.dot(np.diag(s)):
@@ -174,7 +181,7 @@ class worvecs:
                 vec *= 0
             vectors.append(vec)
         self.vectors = np.array(vectors)
-        if this.verbose:
+        if self.verbose:
             logging.info('finished')
         return True
 
