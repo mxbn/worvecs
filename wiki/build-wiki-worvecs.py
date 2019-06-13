@@ -4,15 +4,20 @@ from worvecs import worvecs
 
 if __name__ == '__main__':
     t0 = time.time()
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', \
+    logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s', \
                         level=logging.INFO)
     logging.info('loading text...')
     sentences = []
-    with gzip.open('./data/abstract.txt.gz', 'rt', encoding='utf8') as f:
+    with gzip.open('./data/abstract.txt.gz', 'rt', encoding='utf-8', errors='replace') as f:
         for l in f:
             sentences.append(l.strip().split(' '))
-    logging.info('building worvecs...')
-    model = worvecs(sentences, verbose=1)
+    logging.info('loaded %d sentences' % len(sentences))
+    logging.info('building worvecs with encoding 0...')
+    model = worvecs(sentences, encoding=0, verbose=1)
     logging.info('saving...')
-    model.save('./data/wiki-worvecs.txt.gz')
+    model.save('./data/wiki-worvecs-0.txt.gz')
+    logging.info('building worvecs with encoding 1...')
+    model = worvecs(sentences, encoding=1, verbose=1)
+    logging.info('saving...')
+    model.save('./data/wiki-worvecs-1.txt.gz')
     logging.info('finished: %d min' % ((time.time()-t0)/60))

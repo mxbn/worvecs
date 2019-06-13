@@ -7,7 +7,6 @@ import numpy as np
 from scipy.sparse import csr_matrix, csc_matrix
 from scipy.sparse.linalg import svds
 from sklearn.preprocessing import normalize
-from multiprocessing import Pool, cpu_count
 
 class worvecs:
     """Word vectors modeling tool.
@@ -21,7 +20,7 @@ class worvecs:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, bins=2, bin_width=3, min_frq=1e-5,
+    def __init__(self, sentences=None, bins=2, bin_width=3, min_cnt=20,
         max_frq=0.3, width=100, encoding=0, n_threads=0, verbose=0):
         """Class initializer.
 
@@ -30,13 +29,13 @@ class worvecs:
             bins (int): number of bins on the either side of the word.
                 Default value is 3.
             bin_width (int): width of the bin. Default value is 3.
-            min_frq (float): minimum word frequency as a fraction of the number
-                of documents. Default value is 1e-5.
+            min_cnt (cnt): minimum word count. Default value is 20.
             max_frq (float): miximum word frequency as a fraction of the number
                 of documents. Default value is 0.3.
             width (int): word vectors width. Default value 500.
             encoding (int): word vectors encoding. Default value is 0 for
-                Bayesian, 1 for Jaccard.
+                the word+context over the word frequency.
+                Use 1 for the word+context over the context frequency.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
@@ -44,20 +43,16 @@ class worvecs:
         """
         self.bins = bins
         self.bin_width = bin_width
-        self.min_frq = min_frq
+        self.min_cnt = min_cnt
         self.max_frq = max_frq
         self.width = width
         self.words = np.array([])
         self.vectors = np.array([])
         self.word_ids = {}
         self.encoding = encoding
-        self._encoding = self._bayesian
+        self._encoding = self._enc0
         if encoding == 1:
-            self._encoding = self._jaccard
-        if n_threads == 0:
-            self.n_threads = cpu_count()
-        else:
-            self.n_threads = 1
+            self._encoding = self._enc1
         if verbose == 0:
             self.verbose = False
         else:
@@ -74,11 +69,11 @@ class worvecs:
         else:
             return None
 
-    def _jaccard(self, wcf, wf, cf):
-        return wcf/(wf+cf-wcf)
+    def _enc0(self, wf, cf):
+        return 1.0/wf
 
-    def _bayesian(self, wcf, wf, cf):
-        return wcf/cf
+    def _enc1(self, wf, cf):
+        return 1.0/cf
 
     def _buildDict(self, sentences):
         """Method to build the dictionary with word counts.
@@ -86,44 +81,39 @@ class worvecs:
         Args:
             sentences (iterable): list of sentences spit into tokens
         """
-        words = []
-        word_ids = {}
-        word_cnts = []
+        _word_cnts = {}
         for s in sentences:
             for w in np.unique(s):
-                if w not in word_ids:
-                    words.append(w)
-                    word_ids[w] = len(word_ids)
-                    word_cnts.append(1)
+                if w not in _word_cnts:
+                    _word_cnts[w] = 1
                 else:
-                    word_cnts[word_ids[w]] += 1
-        min_count = len(word_cnts)*self.min_frq
-        max_count = len(word_cnts)*self.max_frq
-        sorted_ids = np.argsort(np.array(word_cnts))[::-1]
-        self.words = [words[i] for i in sorted_ids if word_cnts[i] >= min_count\
-                      and word_cnts[i] < max_count]
+                    _word_cnts[w] += 1
+        max_count = len(sentences)*self.max_frq
+        self.words = [w for w, n in sorted(_word_cnts.items(), \
+            key=lambda item: item[1], reverse=True) \
+            if n >= self.min_cnt and n < max_count]
         self.word_ids = {w: i for i, w in enumerate(self.words)}
-        self.word_cnts = [word_cnts[i] for i in sorted_ids \
-            if word_cnts[i] >= min_count]
+        self.word_cnts = {w: _word_cnts[w] for w in self.words}
 
-    def _getContext(self, words):
+    def _getContext(self, sentence):
         rows = []
         cols = []
         vals = []
-        for i in range(len(words)):
-            if words[i] not in self.word_ids:
+        for i in range(len(sentence)):
+            if sentence[i] not in self.word_ids:
                 continue
             window_start = max([i-self.context_width, 0])
-            window_end = min([i+self.context_width, len(words)])
+            window_end = min([i+self.context_width, len(sentence)])
             for j in range(window_start, window_end):
-                if i == j or words[j] not in self.word_ids:
+                if i == j or sentence[j] not in self.word_ids:
                     continue
                 context_id = self.bin_ids[j-i]*len(self.word_ids) + \
-                    self.word_ids[words[j]]
-                rows.append(self.word_ids[words[i]])
+                    self.word_ids[sentence[j]]
+                rows.append(self.word_ids[sentence[i]])
                 cols.append(context_id)
-                vals.append(1/self.word_cnts[self.word_ids[words[i]]])
-        return rows, cols, vals
+                vals.append(self._encoding(self.word_cnts[sentence[i]], \
+                    self.word_cnts[sentence[j]]))
+        return zip(rows, cols, vals)
 
     def buildWordVectors(self, sentences):
         """Method to build word embeddings model.
@@ -138,17 +128,16 @@ class worvecs:
             logging.info('building dictionary...')
         self._buildDict(sentences)
         if self.verbose:
-            logging.info('%d words' % len(self.word_ids))
+            logging.info('%d words' % len(self.words))
         if self.verbose:
             logging.info('building context...')
-        context = {i:{} for i in range(len(self.word_ids))}
-        with Pool(self.n_threads) as p:
-            for rows, cols, vals in p.imap_unordered(self._getContext, sentences):
-                for r, c, v in zip(rows, cols, vals):
-                    if c in context[r]:
-                        context[r][c] += v
-                    else:
-                        context[r][c] = v
+        context = {i:{} for i in range(len(self.words))}
+        for s in sentences:
+            for r, c, v in self._getContext(s):
+                if c in context[r]:
+                    context[r][c] += v
+                else:
+                    context[r][c] = v
         if self.verbose:
             logging.info('converting to sparse matrix...')
         rows = []
@@ -170,7 +159,7 @@ class worvecs:
         m = csc_matrix(m)
         if self.verbose:
             logging.info('decomposing...')
-        ut, s, vt = svds(m, width)
+        ut, s, vt = svds(m, self.width)
         if self.verbose:
             logging.info('normalizing again...')
         vectors = []

@@ -11,7 +11,7 @@ urls = re.compile(r'((?:https?\://(?:www\.|en\.|fr\.|uk\.|au\.)?|www\.)([^\s\.]+
 token_finder = re.compile(r'\w+(?:[\'\-&\+]\w+)?|[^\w\s\]\[\(\)"\|{}]')
 
 def getWords(text):
-    m = abstract_finder.match(text)
+    m = abstract_finder.match(text.decode('utf-8', 'replace'))
     if m is not None:
         t = str(m.groups()[0]).lower()
         mm = empty_abstract_finder.match(t)
@@ -26,8 +26,8 @@ def getWords(text):
 if __name__ == '__main__':
     print('processing...')
     t0 = time.time()
-    with gzip.open('./data/enwiki-latest-abstract.xml.gz', 'rt', encoding='utf8') as f,\
-        gzip.open('./data/abstract.txt.gz', 'wt', encoding='utf8') as fout,\
+    with gzip.open('./data/enwiki-latest-abstract.xml.gz', 'rb') as f,\
+        gzip.open('./data/abstract.txt.gz', 'wt', encoding='utf-8') as fout,\
         Pool(n_threads) as p:
             for abstract in p.imap_unordered(getWords, f):
                 fout.write(abstract)
