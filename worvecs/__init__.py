@@ -35,8 +35,9 @@ class worvecs:
                 of documents. Default value is 0.3.
             width (int): word vectors width. Default value 500.
             encoding (int): word vectors encoding. Default value is 0 for
-                the word+context over the word frequency.
-                Use 1 for the word+context over the context frequency.
+                the word+context over the word frequency - for similar words.
+                Use 1 for the word+context over the context frequency - for
+                similar concepts.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
@@ -49,7 +50,7 @@ class worvecs:
         self.width = width
         self.words = np.array([])
         self.vectors = np.array([])
-        self.word_ids = {}
+        self.word_ids = defaultdict(int)
         self.encoding = encoding
         self._encoding = self._enc0
         if encoding == 1:
@@ -70,6 +71,13 @@ class worvecs:
         else:
             return None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        if self.verbose:
+            logging.info('model terminated')
+
     def _enc0(self, wf, cf):
         return 1.0/wf
 
@@ -82,13 +90,10 @@ class worvecs:
         Args:
             sentences (iterable): list of sentences spit into tokens
         """
-        _word_cnts = {}
+        _word_cnts = defaultdict(int)
         for s in sentences:
             for w in np.unique(s):
-                if w not in _word_cnts:
-                    _word_cnts[w] = 1
-                else:
-                    _word_cnts[w] += 1
+                _word_cnts[w] += 1
         max_count = len(sentences)*self.max_frq
         self.words = [w for w, n in sorted(_word_cnts.items(), \
             key=lambda item: item[1], reverse=True) \
@@ -130,12 +135,14 @@ class worvecs:
         self._buildDict(sentences)
         if self.verbose:
             logging.info('%d words' % len(self.words))
+
         if self.verbose:
             logging.info('building context...')
         context = [defaultdict(float) for i in range(len(self.words))]
         for s in sentences:
             for r, c, v in self._getContext(s):
                 context[r][c] += v
+
         if self.verbose:
             logging.info('converting to sparse matrix...')
         rows = []
@@ -151,15 +158,19 @@ class worvecs:
         del cols
         del rows
         del vals
+
         if self.verbose:
             logging.info('normalizing...')
         m = normalize(m, norm='l2', axis=0, copy=False)
         m = csc_matrix(m)
+
         if self.verbose:
             logging.info('decomposing...')
         ut, s, vt = svds(m, self.width)
+
         if self.verbose:
             logging.info('normalizing again...')
+
         vectors = []
         for vec in ut.dot(np.diag(s)):
             if np.linalg.norm(vec, 2) > 1e-6:
@@ -170,6 +181,7 @@ class worvecs:
         self.vectors = np.array(vectors)
         if self.verbose:
             logging.info('finished')
+
         return True
 
     def save(self, fname):
