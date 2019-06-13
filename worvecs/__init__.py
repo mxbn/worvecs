@@ -35,9 +35,9 @@ class worvecs:
                 of documents. Default value is 0.3.
             width (int): word vectors width. Default value 500.
             encoding (int): word vectors encoding. Default value is 0 for
-                the word+context over the word frequency - for similar words.
-                Use 1 for the word+context over the context frequency - for
-                similar concepts.
+                the word+context over the word frequency - more for similar
+                things. Use 1 for the word+context over the context frequency -
+                more for similar concepts.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
@@ -247,7 +247,7 @@ class worvecs:
             return None
         dot = self.vectors.dot(self.vectors[self.word_ids[word]])
         indcs = np.argsort(dot)
-        return self.words[indcs][-topN:][::-1], dot[indcs][-topN:][::-1]
+        return self.words[indcs][-topN:][::-1][1:], dot[indcs][-topN:][::-1][1:]
 
     def similarRelations(self, w1, w2, w, topN=10):
         """Method to search for most similar relations in the vectors space.
@@ -272,4 +272,4 @@ class worvecs:
             else 1) for v in v2])
         dot = v2.dot(v1)
         indcs = np.argsort(dot)
-        return self.words[indcs][-topN:][::-1][1:], dot[indcs][-topN:][::-1][1:]
+        return self.words[indcs][-topN:][::-1], dot[indcs][-topN:][::-1]
