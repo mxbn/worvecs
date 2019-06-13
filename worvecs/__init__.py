@@ -135,7 +135,7 @@ class worvecs:
         for s in sentences:
             for r, c, v in self._getContext(s):
                 if c in context[r]:
-                    context[r][c] += v
+                    context[r][c] = context[r][c] + v
                 else:
                     context[r][c] = v
         if self.verbose:

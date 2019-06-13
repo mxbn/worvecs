@@ -13,11 +13,11 @@ if __name__ == '__main__':
             sentences.append(l.strip().split(' '))
     logging.info('loaded %d sentences' % len(sentences))
     logging.info('building worvecs with encoding 0...')
-    model = worvecs(sentences, encoding=0, verbose=1)
-    logging.info('saving...')
-    model.save('./data/wiki-worvecs-0.txt.gz')
+    with worvecs(sentences, encoding=0, verbose=1) as model0:
+        logging.info('saving...')
+        model0.save('./data/wiki-worvecs-0.txt.gz')
     logging.info('building worvecs with encoding 1...')
-    model = worvecs(sentences, encoding=1, verbose=1)
-    logging.info('saving...')
-    model.save('./data/wiki-worvecs-1.txt.gz')
+    with worvecs(sentences, encoding=1, verbose=1) as model1:
+        logging.info('saving...')
+        model1.save('./data/wiki-worvecs-1.txt.gz')
     logging.info('finished: %d min' % ((time.time()-t0)/60))
