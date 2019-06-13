@@ -4,6 +4,7 @@ __version__ = '0.1.1'
 
 import gzip, time, logging
 import numpy as np
+from collections import defaultdict
 from scipy.sparse import csr_matrix, csc_matrix
 from scipy.sparse.linalg import svds
 from sklearn.preprocessing import normalize
@@ -131,19 +132,16 @@ class worvecs:
             logging.info('%d words' % len(self.words))
         if self.verbose:
             logging.info('building context...')
-        context = {i:{} for i in range(len(self.words))}
+        context = [defaultdict(int) for i in range(len(self.words))]
         for s in sentences:
             for r, c, v in self._getContext(s):
-                if c in context[r]:
-                    context[r][c] += v
-                else:
-                    context[r][c] = v
+                context[r][c] += v
         if self.verbose:
             logging.info('converting to sparse matrix...')
         rows = []
         cols = []
         vals = []
-        for r in context:
+        for r in range(len(context)):
             for c in context[r]:
                 rows.append(r)
                 cols.append(c)
