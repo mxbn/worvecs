@@ -7,7 +7,7 @@ model = worvecs()
 model.load('./data/wiki-worvecs-0.txt.gz')
 
 print('\nking -> queen, father -> ?:')
-for s in model.similarRelations('king', 'queen', 'father')[0]:
+for s in model.similarRelations('car', 'driver', 'motorcycle')[0]:
     print('\t%s' % s)
 
 print('\nbus:')
