@@ -132,7 +132,7 @@ class worvecs:
             logging.info('%d words' % len(self.words))
         if self.verbose:
             logging.info('building context...')
-        context = [defaultdict(int) for i in range(len(self.words))]
+        context = [defaultdict(float) for i in range(len(self.words))]
         for s in sentences:
             for r, c, v in self._getContext(s):
                 context[r][c] += v
