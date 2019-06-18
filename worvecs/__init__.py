@@ -12,11 +12,6 @@ from sklearn.preprocessing import normalize
 class model:
     """Word vectors modeling tool.
     Attributes:
-        window (int): number of words on the either side of the word used for
-            building word vectors.
-        pctl (int): percentile of word counts to use for discarding less
-            frequent words.
-        width (int): word vectors width.
         words (np.array): words dictionary.
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
