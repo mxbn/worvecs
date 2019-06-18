@@ -1,111 +1,108 @@
 # -*- coding: ascii -*-
 
-__version__ = '0.0.1'
+__version__ = '1.0.0'
 
-import gzip, time
+import gzip, time, logging
 import numpy as np
+from collections import defaultdict
 from scipy.sparse import csr_matrix, csc_matrix
 from scipy.sparse.linalg import svds
+from sklearn.preprocessing import normalize
 
-class worvecs:
+class model:
     """Word vectors modeling tool.
     Attributes:
-        window (int): number of words on the either side of the word used for
-            building word vectors.
-        pctl (int): percentile of word counts to use for discarding less
-            frequent words.
-        width (int): word vectors width.
         words (np.array): words dictionary.
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, window=5, pctl=75, width=100, encoding=0):
+    def __init__(self, sentences=None, bins=3, bin_width=3, min_cnt=20,
+        max_frq=0.3, width=100, verbose=0):
         """Class initializer.
 
         Args:
             sentences (iterable, optional): list of sentences spit into tokens
-            window (int): number of words on the either side of the word used
-                for building word vectors. Default value is 10.
-            pctl (int): percentile of word counts to use for discarding rare
-                words. Default value is 75.
-            width (int): word vectors width. Default value 500.
-            encoding (int): word vectors encoding. Default values is 0 for
-                Jaccard, 1 for Bayesian.
+            bins (int): number of bins on the either side of the word.
+                Default value is 3.
+            bin_width (int): width of the bin. Default value is 3.
+            min_cnt (cnt): minimum word count. Default value is 20.
+            max_frq (float): miximum word frequency as a fraction of the number
+                of documents. Default value is 0.3.
+            width (int): word vectors width. Default value is 100.
+            verbose (int): verbosity level. Default value is 0.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
                 succesfully built, None otherwise.
         """
-        self.window = window
-        self.pctl = pctl
+        self.bins = bins
+        self.bin_width = bin_width
+        self.min_cnt = min_cnt
+        self.max_frq = max_frq
         self.width = width
         self.words = np.array([])
         self.vectors = np.array([])
         self.word_ids = {}
-        self.encoding = encoding
-        self._encoding = self._jaccard
-        if encoding == 1:
-            self._encoding = self._bayesian
+        self.word_cnts = {}
+        self.word_idfs = {}
+        self.verbose = False
+        if verbose:
+            self.verbose = True
+            logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',\
+                                level=logging.INFO)
+        self.context_width = bin_width*bins
+        self.bin_ids = {}
+        for i in range(-bins, bins):
+            for j in range(i* bin_width, (i+1)*bin_width):
+                self.bin_ids[j + (0 if i < 0 else 1)] = i + bins
         if sentences != None:
             self.buildWordVectors(sentences)
         else:
             return None
 
-    def _jaccard(self, wcf, wf, cf):
-        return wcf/(wf+cf-wcf)
+    def __enter__(self):
+        return self
 
-    def _bayesian(self, wcf, wf, cf):
-        return wcf/cf
+    def __exit__(self, exception_type, exception_value, traceback):
+        if self.verbose:
+            logging.info('model terminated')
 
-    def _buildDict(self, sentences):
+    def buildDict(self, sentences):
         """Method to build the dictionary with word counts.
 
         Args:
             sentences (iterable): list of sentences spit into tokens
         """
-        words = []
-        word_ids = {}
-        word_cnts = []
+        _word_cnts = defaultdict(int)
         for s in sentences:
-            for w in s:
-                if w not in word_ids:
-                    words.append(w)
-                    word_ids[w] = len(word_ids)
-                    word_cnts.append(1)
-                else:
-                    word_cnts[word_ids[w]] += 1
-        min_count = np.percentile(word_cnts, self.pctl)
-        sorted_ids = np.argsort(np.array(word_cnts))[::-1]
-        self.words = [words[i] for i in sorted_ids if word_cnts[i] >= min_count]
+            for w in np.unique(s):
+                _word_cnts[w] += 1
+        max_count = len(sentences)*self.max_frq
+        self.words = np.array([w for w, n in sorted(_word_cnts.items(), \
+            key=lambda item: item[1], reverse=True) \
+            if n >= self.min_cnt and n < max_count])
         self.word_ids = {w: i for i, w in enumerate(self.words)}
-        self.word_cnts = [word_cnts[i] for i in sorted_ids \
-            if word_cnts[i] >= min_count]
+        self.word_cnts = {w: _word_cnts[w] for w in self.words}
+        self.word_idfs = {w: 1.0/_word_cnts[w] for w in self.words}
 
-    def _builContext(self, sentences):
-        """Method to build the word context counts.
-
-        Args:
-            sentences (iterable): list of sentences spit into tokens
-        """
-        context = [{} for i in range(len(self.words))]
-        for s in sentences:
-            for i in range(len(s)):
-                if s[i] not in self.word_ids:
+    def _getContext(self, sentence):
+        rows = []
+        cols = []
+        vals = []
+        for i in range(len(sentence)):
+            if sentence[i] not in self.word_ids:
+                continue
+            window_start = max([i-self.context_width, 0])
+            window_end = min([i+self.context_width, len(sentence)])
+            for j in range(window_start, window_end):
+                if i == j or sentence[j] not in self.word_ids:
                     continue
-                window_start = max([i-self.window, 0])
-                window_end = min([i+self.window, len(s)])
-                context_space = max([self.window - i, 0])
-                for j in range(window_start, window_end):
-                    if i == j or s[j] not in self.word_ids:
-                        continue
-                    context_id = context_space*len(self.words) + \
-                        self.word_ids[s[j]]
-                    context_space += 1
-                    if context_id in context[self.word_ids[s[i]]]:
-                        context[self.word_ids[s[i]]][context_id] += 1
-                    else:
-                        context[self.word_ids[s[i]]][context_id] = 1
-        return context
+                context_id = self.bin_ids[j-i]*len(self.word_ids) + \
+                    self.word_ids[sentence[j]]
+                rows.append(self.word_ids[sentence[i]])
+                cols.append(context_id)
+                vals.append(self.word_idfs[sentence[j]])
+        return zip(rows, cols, vals)
 
     def buildWordVectors(self, sentences):
         """Method to build word embeddings model.
@@ -116,34 +113,46 @@ class worvecs:
         Returns:
             bool: True if word vectors are succesfully updated, False otherwise.
         """
-        self._buildDict(sentences)
-        context = self._builContext(sentences)
+        if self.verbose:
+            logging.info('building dictionary...')
+        self.buildDict(sentences)
+        if self.verbose:
+            logging.info('%d words' % len(self.words))
 
-        data = []
-        indcs = []
-        indptr = [0]
-        for w in self.words:
-            wid = self.word_ids[w]
-            wf = self.word_cnts[wid]
-            vec = np.zeros(len(self.words)*2*self.window)
-            for c in context[wid]:
-                context_id = int(abs(c/len(self.words) - \
-                    c//len(self.words))*len(self.words))
-                cf = self.word_cnts[context_id]
-                wcf = context[wid][c]
-                vec[c] = self._encoding(wcf, wf, cf)
-            if np.linalg.norm(vec, 2) > 1e-6:
-                vec /= np.linalg.norm(vec, 2)
-            nonzero_indcs = np.nonzero(vec)[0]
-            data += list(vec[nonzero_indcs])
-            indcs += list(nonzero_indcs)
-            indptr.append(indptr[-1] + len(nonzero_indcs))
+        if self.verbose:
+            logging.info('building context...')
+        context = [defaultdict(float) for i in range(len(self.words))]
+        for s in sentences:
+            for r, c, v in self._getContext(s):
+                context[r][c] += v
 
-        m = csc_matrix(csr_matrix((data, indcs, indptr)))
-        if m.shape[0] <= self.width or m.shape[1] <= self.width:
-            raise Exception("error")
-            return False
+        if self.verbose:
+            logging.info('converting to sparse matrix...')
+        rows = []
+        cols = []
+        vals = []
+        for r in range(len(context)):
+            for c in context[r]:
+                rows.append(r)
+                cols.append(c)
+                vals.append(context[r][c])
+        del context
+        m = csr_matrix((vals, (rows, cols)), dtype=np.float32)
+        del cols
+        del rows
+        del vals
+
+        if self.verbose:
+            logging.info('normalizing...')
+        m = normalize(m, norm='l2', axis=0, copy=False)
+        m = csc_matrix(m)
+
+        if self.verbose:
+            logging.info('decomposing...')
         ut, s, vt = svds(m, self.width)
+
+        if self.verbose:
+            logging.info('normalizing again...')
 
         vectors = []
         for vec in ut.dot(np.diag(s)):
@@ -153,6 +162,9 @@ class worvecs:
                 vec *= 0
             vectors.append(vec)
         self.vectors = np.array(vectors)
+        if self.verbose:
+            logging.info('finished')
+
         return True
 
     def save(self, fname):
@@ -218,7 +230,7 @@ class worvecs:
             return None
         dot = self.vectors.dot(self.vectors[self.word_ids[word]])
         indcs = np.argsort(dot)
-        return self.words[indcs][-topN:][::-1], dot[indcs][-topN:][::-1]
+        return self.words[indcs][-topN:][::-1][1:], dot[indcs][-topN:][::-1][1:]
 
     def similarRelations(self, w1, w2, w, topN=10):
         """Method to search for most similar relations in the vectors space.
