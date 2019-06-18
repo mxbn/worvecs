@@ -5,7 +5,7 @@ Run:
 2. `python preprocess.py` to extract and tokenize the abstracts.  
 3. `python test-worvecs.py` to build and test word vectors.  
 
-Expected output from step 3[^1]:  
+Expected output from step 3<sup>1</sup>:  
  ```
  loading text...
          loaded 4848075 sentences
@@ -36,4 +36,4 @@ Expected output from step 3[^1]:
          transit
 ```
 
-[^1]: As ran on a 32GB RAM 16 core (32 thread) computer.  
+<sup>1</sup> As ran on a 32GB RAM 16 core (32 thread) computer.  
