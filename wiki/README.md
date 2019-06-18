@@ -1,62 +1,39 @@
 ## Example scripts
 
 Run:  
- - `./get-wiki.sh` to download wiki abstracts  
- - `python preprocess.py` to extract and tokenize the abstracts  
- - `python build-wiki-worvecs.py` to buld word vectors  
- - `python test-worvecs.py` to test word vectors  
+1. `./get-wiki.sh` to download latest wiki abstracts.  
+2. `python preprocess.py` to extract and tokenize the abstracts.  
+3. `python test-worvecs.py` to build and test word vectors.  
 
- Expected output:
+Expected output from step 3[^1]:  
  ```
- encoding 0:
+ loading text...
+         loaded 4848075 sentences
+ building a model...
+         built in 19 min
 
- driving -> car, sailing -> ?:
-  	yacht
-  	airshow
-  	sailing
-  	oshkosh
-  	regatta
-  	round-the
-  	racer
-  	racing
-  	raced
-  	rowing
+ driving -> car, sailing -> ?
+         sailing
+         car
+         motorcycle
+         yacht
+         catamaran
+         trainer
+         racing
+         tourer
+         touring
+         boat
 
-taxi:
-  	buses
-  	trams
-  	streetcars
-  	trolley
-  	taxis
-  	taxicabs
-  	trolleybuses
-  	streetcar
-  	cabs
-
-
-
-encoding 1:
-
-driving -> car, sailing -> ?:
-  	sailing
-  	car
-  	yacht
-  	motorcycle
-  	cruise
-  	boat
-  	racing
-  	cargo
-  	trainer
-  	seaplane
-
-taxi:
-  	rail
-  	buses
-  	commuter
-  	freight
-  	train
-  	line
-  	transit
-  	operated
-  	trains
+ taxi -> ?
+         rail
+         freight
+         buses
+         commuter
+         passenger
+         line
+         train
+         trains
+         transit
 ```
+
+[^1]: As ran on a 32GB RAM 16 core (32 thread) computer.  

@@ -1,6 +1,6 @@
 # -*- coding: ascii -*-
 
-__version__ = '0.1.1'
+__version__ = '1.0.0'
 
 import gzip, time, logging
 import numpy as np
@@ -9,7 +9,7 @@ from scipy.sparse import csr_matrix, csc_matrix
 from scipy.sparse.linalg import svds
 from sklearn.preprocessing import normalize
 
-class worvecs:
+class model:
     """Word vectors modeling tool.
     Attributes:
         window (int): number of words on the either side of the word used for
@@ -21,8 +21,8 @@ class worvecs:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, bins=2, bin_width=3, min_cnt=20,
-        max_frq=0.3, width=100, encoding=0, n_threads=0, verbose=0):
+    def __init__(self, sentences=None, bins=3, bin_width=3, min_cnt=20,
+        max_frq=0.3, width=100, verbose=0):
         """Class initializer.
 
         Args:
@@ -33,11 +33,8 @@ class worvecs:
             min_cnt (cnt): minimum word count. Default value is 20.
             max_frq (float): miximum word frequency as a fraction of the number
                 of documents. Default value is 0.3.
-            width (int): word vectors width. Default value 500.
-            encoding (int): word vectors encoding. Default value is 0 for
-                the word+context over the word frequency - more for similar
-                things. Use 1 for the word+context over the context frequency -
-                more for similar concepts.
+            width (int): word vectors width. Default value is 100.
+            verbose (int): verbosity level. Default value is 0.
 
         Returns:
             bool: Reurns True if sentences are provided and the model is
@@ -50,14 +47,11 @@ class worvecs:
         self.width = width
         self.words = np.array([])
         self.vectors = np.array([])
-        self.word_ids = defaultdict(int)
-        self.encoding = encoding
-        self._encoding = self._enc0
-        if encoding == 1:
-            self._encoding = self._enc1
-        if verbose == 0:
-            self.verbose = False
-        else:
+        self.word_ids = {}
+        self.word_cnts = {}
+        self.word_idfs = {}
+        self.verbose = False
+        if verbose:
             self.verbose = True
             logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',\
                                 level=logging.INFO)
@@ -78,13 +72,7 @@ class worvecs:
         if self.verbose:
             logging.info('model terminated')
 
-    def _enc0(self, wf, cf):
-        return 1.0/wf
-
-    def _enc1(self, wf, cf):
-        return 1.0/cf
-
-    def _buildDict(self, sentences):
+    def buildDict(self, sentences):
         """Method to build the dictionary with word counts.
 
         Args:
@@ -95,11 +83,12 @@ class worvecs:
             for w in np.unique(s):
                 _word_cnts[w] += 1
         max_count = len(sentences)*self.max_frq
-        self.words = [w for w, n in sorted(_word_cnts.items(), \
+        self.words = np.array([w for w, n in sorted(_word_cnts.items(), \
             key=lambda item: item[1], reverse=True) \
-            if n >= self.min_cnt and n < max_count]
+            if n >= self.min_cnt and n < max_count])
         self.word_ids = {w: i for i, w in enumerate(self.words)}
         self.word_cnts = {w: _word_cnts[w] for w in self.words}
+        self.word_idfs = {w: 1.0/_word_cnts[w] for w in self.words}
 
     def _getContext(self, sentence):
         rows = []
@@ -117,8 +106,8 @@ class worvecs:
                     self.word_ids[sentence[j]]
                 rows.append(self.word_ids[sentence[i]])
                 cols.append(context_id)
-                vals.append(self._encoding(self.word_cnts[sentence[i]], \
-                    self.word_cnts[sentence[j]]))
+                #vals.append(self.word_idfs[sentence[j]])
+                vals.append(1)
         return zip(rows, cols, vals)
 
     def buildWordVectors(self, sentences):
@@ -132,7 +121,7 @@ class worvecs:
         """
         if self.verbose:
             logging.info('building dictionary...')
-        self._buildDict(sentences)
+        self.buildDict(sentences)
         if self.verbose:
             logging.info('%d words' % len(self.words))
 
