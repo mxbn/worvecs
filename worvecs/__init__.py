@@ -106,8 +106,7 @@ class model:
                     self.word_ids[sentence[j]]
                 rows.append(self.word_ids[sentence[i]])
                 cols.append(context_id)
-                #vals.append(self.word_idfs[sentence[j]])
-                vals.append(1)
+                vals.append(self.word_idfs[sentence[j]])
         return zip(rows, cols, vals)
 
     def buildWordVectors(self, sentences):
