@@ -1,4 +1,4 @@
-## Example scripts
+## Sample use case
 
 Run:  
 1. `./get-wiki.sh` to download latest wiki abstracts.  
