@@ -7,33 +7,33 @@ Run:
 
 Expected output from step 3<sup>1</sup>:  
  ```
- loading text...
-         loaded 4848075 sentences
- building a model...
-         built in 19 min
+loading text...
+        loaded 4848075 sentences
+building a model...
+        built in 59 min
 
- driving -> car, sailing -> ?
-         sailing
-         car
-         motorcycle
-         yacht
-         catamaran
-         trainer
-         racing
-         tourer
-         touring
-         boat
+driving -> car, sailing -> ?
+        yacht
+        sailing
+        fastnet
+        yachting
+        regattas
+        ship
+        boat
+        cruise
+        shipyard
+        keelboat
 
- taxi -> ?
-         rail
-         freight
-         buses
-         commuter
-         passenger
-         line
-         train
-         trains
-         transit
+taxi -> ?
+        rail
+        transit
+        buses
+        train
+        railways
+        commuter
+        routes
+        tram
+        trains
 ```
 
-<sup>1</sup> As ran on a 32GB RAM 16 core (32 thread) computer.  
+<sup>1</sup> As ran on a 16GB RAM 4 core (4 thread) CPU.  

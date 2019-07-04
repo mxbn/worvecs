@@ -16,7 +16,7 @@ class model:
         vectors (np.array): word vectors.
         word_ids (dict): word to id mapping for faster lookup.
     """
-    def __init__(self, sentences=None, bins=3, bin_width=3, min_cnt=20,
+    def __init__(self, sentences=None, bins=4, bin_width=4, min_cnt=20,
         max_frq=0.3, width=100, verbose=0):
         """Class initializer.
 
@@ -101,7 +101,8 @@ class model:
                     self.word_ids[sentence[j]]
                 rows.append(self.word_ids[sentence[i]])
                 cols.append(context_id)
-                vals.append(self.word_idfs[sentence[j]])
+                vals.append(1.0/(self.word_cnts[sentence[i]] +\
+                            self.word_cnts[sentence[j]]))
         return zip(rows, cols, vals)
 
     def buildWordVectors(self, sentences):
