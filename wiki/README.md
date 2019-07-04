@@ -36,4 +36,4 @@ taxi -> ?
         trains
 ```
 
-<sup>1</sup> As ran on a 16GB RAM 4 core (4 thread) CPU.  
+<sup>1</sup> As ran on a 16GB RAM +16GB swap, 4 core (4 thread) CPU.  
